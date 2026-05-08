@@ -24,5 +24,6 @@ def all_in_one_test(testprocess, testmodules):
     teststart = time.time()
     testprocess()
     testend = time.time()
+    print("from eval_scripts.complexity import all_in_one_test")
     print("Inference Time: "+str(testend-teststart))
     print("Inference Params: "+str(getallparams(testmodules)))

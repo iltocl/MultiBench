@@ -34,4 +34,11 @@ def eval_affect(truths, results, exclude_zero=True):
     binary_truth = (test_truth[non_zeros] > 0)
     binary_preds = (test_preds[non_zeros] > 0)
 
-    return sklearn.metrics.accuracy_score(binary_truth, binary_preds)
+    # added metrics
+    acc = sklearn.metrics.accuracy_score(binary_truth, binary_preds)
+    macro_f1_score = sklearn.metrics.f1_score(binary_truth, binary_preds, average='macro')
+    f1_score = sklearn.metrics.f1_score(binary_truth, binary_preds)
+    p = sklearn.metrics.precision_score(binary_truth, binary_preds)
+    r = sklearn.metrics.recall_score(binary_truth, binary_preds)
+    
+    return acc, macro_f1_score, f1_score, p, r
