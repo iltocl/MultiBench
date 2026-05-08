@@ -22,6 +22,9 @@ from robustness.timeseries_robust import add_timeseries_noise
 
 np.seterr(divide='ignore', invalid='ignore')
 
+# -------------------------------------------------------------------------
+# Processing DATASET
+# -------------------------------------------------------------------------
 def drop_entry(dataset):
     """Drop entries where there's no text in the data."""
     drop = []
@@ -39,6 +42,7 @@ def drop_entry(dataset):
     
     for modality in list(dataset.keys()):
         dataset[modality] = np.delete(dataset[modality], drop, 0)
+    print("After drop_entry:", len(drop), "entries were dropped")    
     return dataset
 
 
@@ -60,9 +64,12 @@ def z_norm(dataset, max_seq_len=50):
     processed['audio'] = audio
     processed['text'] = text
     processed['labels'] = dataset['labels']
+    
     return processed
 
-
+# -------------------------------------------------------------------------
+# Processing TEXT
+# -------------------------------------------------------------------------
 def get_rawtext(path, data_kind, vids):
     """Get raw text, video data from hdf5 file."""
     if data_kind == 'hdf5':
@@ -153,7 +160,9 @@ def _glove_embeddings(text_data, vids, paddings=50):
         embedd_data.append(np.array(tmp))
     return np.array(embedd_data)
 
-
+# -------------------------------------------------------------------------
+# 
+# -------------------------------------------------------------------------
 class Affectdataset(Dataset):
     """Implements Affect data as a torch dataset."""
     def __init__(self, data: Dict, flatten_time_series: bool, aligned: bool = True, task: str = None, max_pad=False, max_pad_num=50, data_type='mosi', z_norm=False) -> None:
@@ -189,10 +198,7 @@ class Affectdataset(Dataset):
         audio = torch.tensor(self.dataset['audio'][ind])
         text = torch.tensor(self.dataset['text'][ind])
 
-        
-        
-        
-
+        # aligned data
         if self.aligned:
             try:
                 start = text.nonzero(as_tuple=False)[0][0]
@@ -210,9 +216,12 @@ class Affectdataset(Dataset):
 
         # z-normalize data
         if self.z_norm:
+            print("z_norm==True")
             vision = torch.nan_to_num((vision - vision.mean(0, keepdims=True)) / (torch.std(vision, axis=0, keepdims=True)))
             audio = torch.nan_to_num((audio - audio.mean(0, keepdims=True)) / (torch.std(audio, axis=0, keepdims=True)))
             text = torch.nan_to_num((text - text.mean(0, keepdims=True)) / (torch.std(text, axis=0, keepdims=True)))
+        else:
+            print("z_norm==False")
 
         def _get_class(flag, data_type=self.data_type):
             if data_type in ['mosi', 'mosei', 'sarcasm']:
@@ -223,6 +232,7 @@ class Affectdataset(Dataset):
             else:
                 return [flag]
         
+        # working with labels
         tmp_label = self.dataset['labels'][ind]
         if self.data_type == 'humor' or self.data_type == 'sarcasm':
             if (self.task == None) or (self.task == 'regression'):
@@ -233,8 +243,7 @@ class Affectdataset(Dataset):
         else:
             tmp_label = self.dataset['labels'][ind]
 
-        label = torch.tensor(_get_class(tmp_label)).long() if self.task == "classification" else torch.tensor(
-            tmp_label).float()
+        label = torch.tensor(_get_class(tmp_label)).long() if self.task == "classification" else torch.tensor(tmp_label).float()
 
         if self.flatten:
             return [vision.flatten(), audio.flatten(), text.flatten(), ind, \
@@ -281,25 +290,79 @@ def get_dataloader(
         alldata = pickle.load(f)
 
     processed_dataset = {'train': {}, 'test': {}, 'valid': {}}
+    # drop entries where there's no text in the data
     alldata['train'] = drop_entry(alldata['train'])
     alldata['valid'] = drop_entry(alldata['valid'])
     alldata['test'] = drop_entry(alldata['test'])
 
-    process = eval("_process_2") if max_pad else eval("_process_1")
+    #process = eval("_process_2") if max_pad else eval("_process_1")
+    if max_pad:
+        process = eval("_process_2")
+        print("_process_2")
+    else:
+        process = eval("_process_1")
+        print("_process_1")
+        print("process", process)
 
-    for dataset in alldata:
-        processed_dataset[dataset] = alldata[dataset]
+    for partition in alldata:
+        print("for partition in alldata", partition)
+        processed_dataset[partition] = alldata[partition]    
+    # ----------------------------
+    # convert to binary labels
+    #if data_type == 'sarcasm':
+    #    print("Original labels:", set(processed_dataset['train']['labels']))
+    #    print("Labels changed to binary for all partitions")
+    #    for partition in processed_dataset:
+    #        processed_dataset[partition]['labels'] = [0 if x == -1 else x for x in processed_dataset[partition]['labels']]
+    #        print(processed_dataset[partition]['labels'])
+    #else:
+    #    print("N/A")
 
-    train = DataLoader(Affectdataset(processed_dataset['train'], flatten_time_series, task=task, max_pad=max_pad,               max_pad_num=max_seq_len, data_type=data_type, z_norm=z_norm), \
+
+    def print_num_items_in_class(_data_type, _processed_dataset):
+        if _data_type == "sarcasm":
+            print("train")
+            print("Class 0:", list(_processed_dataset['train']['labels']).count(-1))
+            print("Class 1:", list(_processed_dataset['train']['labels']).count(1))
+            print("test")
+            print("Class 0:", list(_processed_dataset['test']['labels']).count(-1))
+            print("Class 1:", list(_processed_dataset['test']['labels']).count(1))
+            print("valid")
+            print("Class 0:", list(_processed_dataset['valid']['labels']).count(-1))
+            print("Class 1:", list(_processed_dataset['valid']['labels']).count(1))
+        else:
+            print("N/A")
+    
+    print_num_items_in_class(data_type, processed_dataset)
+    # -------------------------------
+
+    train = DataLoader(Affectdataset(processed_dataset['train'], flatten_time_series, task=task, max_pad=max_pad, max_pad_num=max_seq_len, data_type=data_type, z_norm=z_norm), \
                        shuffle=train_shuffle, num_workers=num_workers, batch_size=batch_size, \
                        collate_fn=process)
+    #Affectdataset_train = Affectdataset(processed_dataset['train'], flatten_time_series, task=task, max_pad=max_pad, max_pad_num=max_seq_len, data_type=data_type, z_norm=z_norm)
+    #new_Affectdataset_train = convert_to_binary_tags(Affectdataset_train, data_type=data_type) 
+    #print("Affectdataset_train", new_Affectdataset_train.dataset['labels'])
+    #train = DataLoader(new_Affectdataset_train, \
+    #         shuffle=train_shuffle, num_workers=num_workers, batch_size=batch_size, \
+    #         collate_fn=process)
+    print("train DataLoader")
+    
     valid = DataLoader(Affectdataset(processed_dataset['valid'], flatten_time_series, task=task, max_pad=max_pad, max_pad_num=max_seq_len, data_type=data_type, z_norm=z_norm), \
                        shuffle=False, num_workers=num_workers, batch_size=batch_size, \
                        collate_fn=process)
-    # test = DataLoader(Affectdataset(processed_dataset['test'], flatten_time_series, task=task), \
+    #Affectdataset_valid = Affectdataset(processed_dataset['valid'], flatten_time_series, task=task, max_pad=max_pad, max_pad_num=max_seq_len, data_type=data_type, z_norm=z_norm)
+    #new_Affectdataset_valid = convert_to_binary_tags(Affectdataset_valid, data_type=data_type) 
+    #print("Affectdataset_valid", new_Affectdataset_valid.dataset['labels'])
+    #valid = DataLoader(new_Affectdataset_valid, \
+    #         shuffle=train_shuffle, num_workers=num_workers, batch_size=batch_size, \
+    #         collate_fn=process)
+    print("valid DataLoader")
+    #test = DataLoader(Affectdataset(processed_dataset['test'], flatten_time_series, task=task), \
     #                   shuffle=False, num_workers=num_workers, batch_size=batch_size, \
     #                   collate_fn=process)
+    
     if robust_test:
+        print("if robust test")
         vids = [id for id in alldata['test']['id']]
 
         file_type = raw_path.split('.')[-1]  # hdf5
@@ -383,13 +446,25 @@ def get_dataloader(
         test_robust_data['robust_vision'] = robust_vision
         test_robust_data['robust_audio'] = robust_audio
         test_robust_data['robust_timeseries'] = robust_timeseries
+        
         return train, valid, test_robust_data
     else:
+        print("else robust test")
         # test = dict()
         test = DataLoader(Affectdataset(processed_dataset['test'], flatten_time_series, task=task, max_pad=max_pad, max_pad_num=max_seq_len, data_type=data_type, z_norm=z_norm), \
                       shuffle=False, num_workers=num_workers, batch_size=batch_size, \
                       collate_fn=process)
+        #Affectdataset_test = Affectdataset(processed_dataset['test'], flatten_time_series, task=task, max_pad=max_pad, max_pad_num=max_seq_len, data_type=data_type, z_norm=z_norm)
+        #new_Affectdataset_test = convert_to_binary_tags(Affectdataset_test, data_type=data_type) 
+        #print("Affectdataset_test", new_Affectdataset_test.dataset['labels'])
+        #test = DataLoader(new_Affectdataset_test, \
+        #        shuffle=train_shuffle, num_workers=num_workers, batch_size=batch_size, \
+        #        collate_fn=process)
+        print("test DataLoader")    
+        
         return train, valid, test
+
+
 
 def _process_1(inputs: List):
     processed_input = []
@@ -481,3 +556,6 @@ if __name__ == '__main__':
         
         
         # break
+
+
+
