@@ -9,6 +9,11 @@ from eval_scripts.robustness import relative_robustness, effective_robustness, s
 from tqdm import tqdm
 softmax = nn.Softmax()
 
+from sklearn.metrics import classification_report
+import numpy as np
+
+import matplotlib.pyplot as plt
+
 
 def train(encoder, head, train_dataloader, valid_dataloader, total_epochs, early_stop=False, optimtype=torch.optim.RMSprop, lr=0.001, weight_decay=0.0, criterion=nn.CrossEntropyLoss(), auprc=False, save_encoder='encoder.pt', save_head='head.pt', modalnum=0, task='classification', track_complexity=True):
     """Train unimodal module.
@@ -31,6 +36,8 @@ def train(encoder, head, train_dataloader, valid_dataloader, total_epochs, early
         task (str, optional): Type of task to try. Supports "classification", "regression", or "multilabel". Defaults to 'classification'.
         track_complexity (bool, optional): Whether to track the model's complexity or not. Defaults to True.
     """
+    #trainloss_values = []
+
     def _trainprocess():
         model = nn.Sequential(encoder, head)
         op = optimtype(model.parameters(), lr=lr, weight_decay=weight_decay)
@@ -84,8 +91,7 @@ def train(encoder, head, train_dataloader, valid_dataloader, total_epochs, early
             valloss = totalloss/totals
             if task == "classification":
                 acc = accuracy_score(true, pred)
-                print("Epoch "+str(epoch)+" valid loss: "+str(valloss) +
-                      " acc: "+str(acc))
+                #print("Epoch "+str(epoch)+" valid loss: "+str(valloss) + " acc: "+str(acc))
                 if acc > bestacc:
                     patience = 0
                     bestacc = acc
@@ -94,6 +100,8 @@ def train(encoder, head, train_dataloader, valid_dataloader, total_epochs, early
                     torch.save(head, save_head)
                 else:
                     patience += 1
+                    torch.save(encoder, save_encoder)
+                    torch.save(head, save_head)
             elif task == "multilabel":
                 f1_micro = f1_score(true, pred, average="micro")
                 f1_macro = f1_score(true, pred, average="macro")
@@ -121,10 +129,25 @@ def train(encoder, head, train_dataloader, valid_dataloader, total_epochs, early
                 break
             if auprc:
                 print("AUPRC: "+str(AUPRC(pts)))
+
+            #trainloss = totalloss/ totals
+            #trainloss_values.append(trainloss.item())
+            # end epoch
+        return model
     if track_complexity:
         all_in_one_train(_trainprocess, [encoder, head])
     else:
         _trainprocess()
+    
+    #plt.plot(trainloss_values, label="Train Loss")
+    
+    #plt.title("Loss Over Epochs")
+    #plt.xlabel("Epoch")
+    #plt.ylabel("Loss")
+    #plt.legend()
+    #plt.show()
+
+    # end train()
 
 
 def single_test(encoder, head, test_dataloader, auprc=False, modalnum=0, task='classification', criterion=None):
@@ -149,6 +172,7 @@ def single_test(encoder, head, test_dataloader, auprc=False, modalnum=0, task='c
         totalloss = 0
         pts = []
         for j in test_dataloader:
+            model.eval()##
             out = model(j[modalnum].float().to(torch.device("cuda:0" if torch.cuda.is_available() else "cpu")))
             if criterion is not None:
                 loss = criterion(out, j[-1].to(torch.device("cuda:0" if torch.cuda.is_available() else "cpu")))
@@ -183,8 +207,20 @@ def single_test(encoder, head, test_dataloader, auprc=False, modalnum=0, task='c
         if criterion is not None:
             print("loss: " + str(totalloss / totals))
         if task == "classification":
-            print("acc: "+str(accuracy_score(true, pred)))
-            return {'Accuracy': accuracy_score(true, pred)}
+            #print("acc: "+str(accuracy_score(true, pred)))
+            #return {'Accuracy': accuracy_score(true, pred)}
+            lst_pred = pred
+            print("lst_pred", lst_pred)
+            trues = []
+            for e in true:
+                label = int(e.item())
+                trues.append(label)
+            lst_true = np.array(trues)
+            lst_true[lst_true == -1] = 0
+            print("lst_true", lst_true)
+            report = classification_report(y_true=lst_true, y_pred=lst_pred, digits=4)
+            print(report)
+            return lst_pred
         elif task == "multilabel":
             print(" f1_micro: "+str(f1_score(true, pred, average="micro")) +
                   " f1_macro: "+str(f1_score(true, pred, average="macro")))
