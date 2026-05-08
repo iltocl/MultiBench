@@ -7,7 +7,27 @@ from torch.nn import functional as F
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 from torchvision import models as tmodels
 
+import matplotlib.pyplot as plt
 
+
+class Identity(nn.Module):
+    """Identity Module."""
+    
+    def __init__(self):
+        """Initialize Identity Module."""
+        super().__init__()
+
+    def forward(self, x):
+        """Apply Identity to Input.
+
+        Args:
+            x (torch.Tensor): Layer Input
+
+        Returns:
+            torch.Tensor: Layer Output
+        """
+        #print(f"Identity layer input shape: {x.shape}")
+        return x
 
 
 class Linear(torch.nn.Module):
@@ -170,6 +190,9 @@ class MLP(torch.nn.Module):
             output2 = self.dropout_layer(output)
         if self.output_each_layer:
             return [0, x, output, self.lklu(output2)]
+            #return [0, x, output, output2]
+        
+        #print("MLP_output", output2.shape, "\n")
         return output2
 
 
@@ -874,23 +897,6 @@ class Constant(nn.Module):
         return torch.zeros(self.out_dim).to(x.device)
 
 
-class Identity(nn.Module):
-    """Identity Module."""
-    
-    def __init__(self):
-        """Initialize Identity Module."""
-        super().__init__()
-
-    def forward(self, x):
-        """Apply Identity to Input.
-
-        Args:
-            x (torch.Tensor): Layer Input
-
-        Returns:
-            torch.Tensor: Layer Output
-        """
-        return x
 
 
 
@@ -997,10 +1003,11 @@ class ResNetLSTMEnc(torch.nn.Module):
         return hidden
 
 
+
 class Transformer(nn.Module):
     """Extends nn.Transformer."""
     
-    def __init__(self, n_features, dim):
+    def __init__(self, n_features, dim, num_head):
         """Initialize Transformer object.
 
         Args:
@@ -1009,10 +1016,55 @@ class Transformer(nn.Module):
         """
         super().__init__()
         self.embed_dim = dim
+        self.nhead = num_head
+
+        #self.dropout = nn.Dropout(0.2) # added the dropout
+        
+        # Transformer encoder layer
+        layer = nn.TransformerEncoderLayer(d_model=self.embed_dim, nhead=self.nhead) #  8 o 5
+        self.transformer = nn.TransformerEncoder(layer, num_layers=6)
+
+    def forward(self, x):
+        """Apply Transformer to Input.
+
+        Args:
+            x (torch.Tensor): Layer Input with shape [batch_size, sequence_length, n_features]
+
+        Returns:
+            torch.Tensor: Layer Output with shape [batch_size, embed_dim]
+        """
+        if type(x) is list:
+            x = x[0]
+
+        #x = self.dropout(x)
+        # Permute the input to the format expected by the Transformer
+        x = x.permute([1, 0, 2])  # Shape becomes [sequence_length, batch_size, embed_dim]
+        # Apply transformer encoder
+        x = self.transformer(x)[-1]  # Get the last output (for classification or further processing)
+        return x
+    
+class Transformer_with_Conv1D(nn.Module):
+    """Extends nn.Transformer."""
+    
+    def __init__(self, n_features, dim, num_head):
+        """Initialize Transformer object.
+
+        Args:
+            n_features (int): Number of features in the input.
+            dim (int): Dimension which to embed upon / Hidden dimension size.
+        """
+        super().__init__()
+        self.embed_dim = dim
+        self.nhead = num_head
+
+        #self.dropout = nn.Dropout(0.2) # added the dropout
+
+        # Conv1D layer
         self.conv = nn.Conv1d(n_features, self.embed_dim,
                               kernel_size=1, padding=0, bias=False)
-        layer = nn.TransformerEncoderLayer(d_model=self.embed_dim, nhead=5)
-        self.transformer = nn.TransformerEncoder(layer, num_layers=5)
+        # Transformer encoder layer
+        layer = nn.TransformerEncoderLayer(d_model=self.embed_dim, nhead=self.nhead) # 8 or 5
+        self.transformer = nn.TransformerEncoder(layer, num_layers=6)
 
     def forward(self, x):
         """Apply Transformer to Input.
@@ -1025,6 +1077,8 @@ class Transformer(nn.Module):
         """
         if type(x) is list:
             x = x[0]
+
+        #x = self.dropout(x) 
         x = self.conv(x.permute([0, 2, 1]))
         x = x.permute([2, 0, 1])
         x = self.transformer(x)[-1]
