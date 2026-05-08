@@ -41,7 +41,10 @@ class ConcatEarly(nn.Module):
         
         :param modalities: An iterable of modalities to combine
         """
-        return torch.cat(modalities, dim=2)
+        output = torch.cat(modalities, dim=2)
+        #print(f"Shape after fusion: {output.shape}")
+
+        return output
 
 
 # Stacking modalities
@@ -440,6 +443,122 @@ class EarlyFusionTransformer(nn.Module):
         x = self.transformer(x)[-1]
         return self.linear(x)
 
+# --------------------------------------------------- ADDED
+class EarlyFusionTransformer3Modalities(nn.Module):
+    """Implements a Transformer with Early Fusion."""
+    
+    embed_dim = 9
+
+    def __init__(self, n_features):
+        """Initialize EarlyFusionTransformer Object.
+
+        Args:
+            n_features (int): Number of features in input for each modality.
+        
+        """
+        super().__init__()
+        self.conv = nn.Conv1d(n_features, self.embed_dim,
+                              kernel_size=1, padding=0, bias=False)
+        layer = nn.TransformerEncoderLayer(d_model=self.embed_dim, nhead=3)
+        self.transformer = nn.TransformerEncoder(layer, num_layers=3)
+        self.linear = nn.Linear(self.embed_dim, 1)
+
+    def forward(self, modalities):
+        """Apply EarlyFusion with a Transformer Encoder to input.
+
+        Args:
+            modalities (list): List of input tensors, each of size (batch_size, n_features, sequence_length)
+
+        Returns:
+            torch.Tensor: Layer Output
+        """        
+        #for i, modality in enumerate(modalities):
+        #    print(f"Modalidad {i+1} shape:", modality.shape)
+
+        # Concatenate the input modalities along the feature dimension
+        x = torch.cat(modalities, dim=2)
+        #print("concatenated modalities", x.shape)
+
+        # Apply convolution and permute dimensions
+        #print("weights", self.conv.weight.shape)
+        x = self.conv(x.permute(0, 2, 1))
+        # Permute dimensions for transformer
+        x = x.permute(2, 0, 1) # (seq_length, batch_size, features)
+        # Apply transformer
+        x = self.transformer(x)[-1]
+        #linear_output = self.linear(x)
+        #print("output.shape", linear_output.shape)
+        return self.linear(x)
+        #-------------------
+        # Obtener la salida de self.linear(x)
+        #linear_output = self.linear(x)
+        #print("self.linear", self.linear(x))
+
+        # Reformatear la salida para que sea compatible con la entrada de la capa GRU en head
+        # Asumiendo que la dimensión del lote es batch_size y sequence_length
+        #sequence_length = linear_output.shape[0]
+        #batch_size = linear_output.shape[1]
+        #n_features = linear_output.shape[2]
+
+        # Reformatear la salida para que tenga la forma (sequence_length, batch_size, n_features)
+        #gru_input = linear_output.permute(1, 0, 2)
+
+        # Alimentar la salida reformateada a través de head
+        #gru_output = head(gru_input)
+        #return gru_input
+    
+class EarlyFusionTransformer3ModalitiesPrueba(nn.Module):
+    """Implements a Transformer with Early Fusion."""
+    
+    embed_dim = 483
+
+    def __init__(self, n_features):
+        """Initialize EarlyFusionTransformer Object.
+
+        Args:
+            n_features (int): Number of features in input for each modality.
+        
+        """
+        super().__init__()
+        self.conv = nn.Conv1d(n_features, self.embed_dim,
+                              kernel_size=1, padding=0, bias=False)
+        layer = nn.TransformerEncoderLayer(d_model=self.embed_dim, nhead=3) #
+        self.transformer = nn.TransformerEncoder(layer, num_layers=3)
+        self.linear = nn.Linear(self.embed_dim, 1)
+
+    def forward(self, modalities):
+        """Apply EarlyFusion with a Transformer Encoder to input.
+
+        Args:
+            modalities (list): List of input tensors, each of size (batch_size, n_features, sequence_length)
+
+        Returns:
+            torch.Tensor: Layer Output
+        """        
+        for i, modality in enumerate(modalities):
+            print(f"Modalidad {i+1} shape:", modality.shape)
+
+        # Concatenate the input modalities along the feature dimension
+        x = torch.cat(modalities, dim=2)
+        print("concatenated modalities", x.shape)
+
+        # Apply convolution and permute dimensions
+        print("weights", self.conv.weight.shape)
+        x = self.conv(x.permute(0, 2, 1))
+        # Permute dimensions for transformer
+        x = x.permute(2, 0, 1) # (seq_length, batch_size, features)
+        # Apply transformer
+        x = self.transformer(x)[-1]
+
+        print("x", x.shape)
+        #print(x, "\n")
+        
+        linear_output = self.linear(x)
+        print("output.shape", linear_output.shape, "\n")
+        #print(linear_output)
+        return self.linear(x)
+
+# --------------------------------------------------- ADDED END
 
 class LateFusionTransformer(nn.Module):
     """Implements a Transformer with Late Fusion."""
