@@ -232,7 +232,8 @@ class Affectdataset(Dataset):
             else:
                 return [flag]
         
-        # working with labels
+        # --- adapting labels for task ---
+        """
         tmp_label = self.dataset['labels'][ind]
         if self.data_type == 'humor' or self.data_type == 'sarcasm':
             if (self.task == None) or (self.task == 'regression'):
@@ -242,9 +243,16 @@ class Affectdataset(Dataset):
                     tmp_label = [[1]]
         else:
             tmp_label = self.dataset['labels'][ind]
-
         label = torch.tensor(_get_class(tmp_label)).long() if self.task == "classification" else torch.tensor(tmp_label).float()
+        """
+        tmp_label = self.dataset['labels'][ind]
+        if self.task == "classification":
+            label_value = _get_class(tmp_label)
+            label = torch.tensor(label_value).long()
+        else:
+            label = torch.tensor(tmp_label).float()
 
+        # ---
         if self.flatten:
             return [vision.flatten(), audio.flatten(), text.flatten(), ind, \
                     label]
