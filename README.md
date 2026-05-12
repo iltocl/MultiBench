@@ -1,3 +1,7 @@
+# examples/evaluate_MUSTARD/EVALUATION.md
+([mm-lle-mustard](https://github.com/iltocl/MultiBench/blob/mm-lle-mustard/examples/evaluate_MUSTARD/EVALUATION.md)) This branch was adapted to perform our experiments evaluations for MUSTARD dataset
+
+
 # MultiBench: Multiscale Benchmarks for Multimodal Representation Learning
 
 [MultiBench website](https://cmu-multicomp-lab.github.io/multibench/)
