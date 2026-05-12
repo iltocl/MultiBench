@@ -517,18 +517,23 @@ def _process_2(inputs: List):
         processed_input.append(torch.stack(feature))
 
     for sample in inputs:
-        
-        # if len(sample[-2].shape) > 2:
-        #     labels.append(torch.where(sample[-2][:, 1] == 1)[0])
-        # else:
-        # print(sample[-1].shape)
-        if sample[-1].shape[1] > 1:
-            labels.append(sample[-1].reshape(sample[-1].shape[1], sample[-1].shape[0])[0])
+        label = sample[-1] #added
+
+        ## if len(sample[-2].shape) > 2:
+        ##     labels.append(torch.where(sample[-2][:, 1] == 1)[0])
+        ## else:
+        ## print(sample[-1].shape)
+        #if sample[-1].shape[1] > 1:
+        #    labels.append(sample[-1].reshape(sample[-1].shape[1], sample[-1].shape[0])[0])
+        #else:
+        #    labels.append(sample[-1])
+    #return processed_input[0], processed_input[1], processed_input[2], torch.tensor(labels).view(len(inputs), 1)
+        if label.ndim>1 and label.shape[1]>1:
+            labels.append(label.reshape(label.shape[1], label.shape[0])[0])
         else:
-            labels.append(sample[-1])
-
-    return processed_input[0], processed_input[1], processed_input[2], torch.tensor(labels).view(len(inputs), 1)
-
+            labels.append(label.squeeze())
+    final_labels = torch.stack(labels).view(len(inputs), 1)
+    return processed_input[0], processed_input[1], processed_input[2], final_labels
 
 if __name__ == '__main__':
     traindata, validdata, test_robust = \
