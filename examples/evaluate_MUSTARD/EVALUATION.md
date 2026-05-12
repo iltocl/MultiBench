@@ -31,6 +31,7 @@ Make sure the following notebooks and scripts are in ```evaluate_MUSTARD```:
 Create dir ```LLEasAtt_representations``` and move the pkl files that were previously generated.
 ```sh
 mkdir LLEasAtt_representations
+# add pkl files (e.g. mustard_bagVectors_UM_N_10_T_V_A.pkl)
 ```
 
 The main adaptations of the repository structure:
