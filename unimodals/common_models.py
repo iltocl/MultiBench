@@ -195,8 +195,6 @@ class MLP(torch.nn.Module):
         #print("MLP_output", output2.shape, "\n")
         return output2
 
-
-
 class GRU(torch.nn.Module):
     """Implements Gated Recurrent Unit (GRU)."""
     
@@ -1021,8 +1019,16 @@ class Transformer(nn.Module):
         #self.dropout = nn.Dropout(0.2) # added the dropout
         
         # Transformer encoder layer
-        layer = nn.TransformerEncoderLayer(d_model=self.embed_dim, nhead=self.nhead) #  8 o 5
+        #layer = nn.TransformerEncoderLayer(d_model=self.embed_dim, nhead=self.nhead) #  8 o 5
+        layer = nn.TransformerEncoderLayer(
+            d_model=self.embed_dim, 
+            nhead=self.nhead,
+            norm_first=True,
+            dropout=0.1 # Un poco de dropout ayuda a romper el estancamiento
+        ) 
         self.transformer = nn.TransformerEncoder(layer, num_layers=6)
+        # 
+        self.final_norm = nn.LayerNorm(self.embed_dim)
 
     def forward(self, x):
         """Apply Transformer to Input.
@@ -1039,10 +1045,15 @@ class Transformer(nn.Module):
         #x = self.dropout(x)
         # Permute the input to the format expected by the Transformer
         x = x.permute([1, 0, 2])  # Shape becomes [sequence_length, batch_size, embed_dim]
+        
+        x = self.transformer(x)
+        x = self.final_norm(x)
+        x = torch.mean(x, dim=0) 
         # Apply transformer encoder
-        x = self.transformer(x)[-1]  # Get the last output (for classification or further processing)
+        #x = self.transformer(x)[-1]  # Get the last output (for classification or further processing)
         return x
     
+
 class Transformer_with_Conv1D(nn.Module):
     """Extends nn.Transformer."""
     
