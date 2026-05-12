@@ -2,7 +2,7 @@
 
 *Note that we used some models from [Multibench](https://github.com/pliang279/MultiBench.git)*. 
 
-Then, we recommend to clone our adapter repository branch (mm-lle-mustard):
+Then, we recommend to clone our adapted repository branch (mm-lle-mustard):
 ```sh
 # the original repository
 # git clone https://github.com/pliang279/MultiBench.git 
