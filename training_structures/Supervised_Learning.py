@@ -120,7 +120,8 @@ def train(
 
     batch = next(iter(train_dataloader)) # to verify the labels
     labels = batch[-1]
-    print(f"Labels: {labels.shape}, {labels.dtype}, {labels[:5]}")
+    unique = torch.unique(labels)
+    print(f"Labels: {labels.shape}, {labels.dtype}, {unique}")
     
     trainloss_values = [] # for plotting
     valloss_values = [] 
@@ -139,12 +140,11 @@ def train(
         patience = 0
 
         def _processinput(inp):
+            inp = inp.float()
             if torch.isnan(inp).any():
-                print(f"NaN detected in model input.")
-            if input_to_float:
-                return inp.float()
-            else:
-                return inp
+                inp = torch.nan_to_num(inp, nan=0.0)
+                print("NaN", inp) 
+            return inp
 
         for epoch in range(total_epochs):
             # ---------- training the model ----------------------
@@ -164,7 +164,7 @@ def train(
                     #print(f"train OUT: {out.shape}, {out.dtype}")
     
                     if torch.isnan(out).any():
-                        #print(f"NaN detected in model output.")
+                        print(f"Epoch {epoch}: NaN detected.")
                         continue
             
                 if not (objective_args_dict is None):
@@ -211,6 +211,10 @@ def train(
                     else:
                         out = model([_processinput(i).to(device)
                                     for i in j[:-1]])
+
+                    if torch.isnan(out).any():
+                        print(f"Validation. NaN detected.")
+                        continue
 
                     if not (objective_args_dict is None):
                         objective_args_dict['reps'] = model.reps
@@ -291,7 +295,8 @@ def train(
                     patience += 1
             # ------- early stopping --------
             #print("PATIENCE=", patience)
-            if early_stop and patience > 20:
+            if early_stop and patience > 12:
+                print(f"Stopped by early_stop and patience. Epoch {epoch}")
                 break
             if auprc:
                 print("AUPRC: "+str(AUPRC(pts)))
@@ -310,8 +315,6 @@ def train(
         _trainprocess()
 
     # ---- plotting loss -------------------------------------------
-
-
     plt.figure()
     plt.plot(torch.tensor(trainloss_values).cpu().detach().numpy(), label="Train Loss")
     plt.title("Loss Over Epochs")
@@ -397,7 +400,7 @@ def single_test(
                 loss = criterion(out, batch[-1].to(torch.device("cuda:0" if torch.cuda.is_available() else "cpu")))
             
             totalloss += loss * len(batch[-1])
-            print("totalloss", totalloss)
+            #print("totalloss", totalloss)
             """
             tasks
             """
