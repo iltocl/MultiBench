@@ -2,6 +2,8 @@
 
 *Note that we used some models from [Multibench](https://github.com/pliang279/MultiBench.git)*. 
 
+Link to our modified branch [MultiBench (mm-lle-mustard)](https://github.com/iltocl/MultiBench/tree/mm-lle-mustard)
+
 Then, we recommend to clone our adapted repository branch (mm-lle-mustard):
 ```sh
 # the original repository
