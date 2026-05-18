@@ -20,7 +20,6 @@ from training_structures.Supervised_Learning import test as test_mmdl
 from training_structures.Supervised_Learning import MMDL
 
 
-
 def set_seed(_seed=42):
     random.seed(_seed)
     os.environ['PYTHONHASHSEED'] = str(_seed)
@@ -33,16 +32,14 @@ def set_seed(_seed=42):
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
-
-
 def eval_with_Transformer_M1enriched_seed(_data_type, _dir_file_pkl, _total_epochs, _modality_num, _features_n, _seed, _early_stop, _load_precomputed=False, _encoder_pt=None, _head_pt=None):
     """
     For MUSTARD, _modality_num: 0 = vision, 1 = audio, 2 = text
     """
-
+    name = _dir_file_pkl.split('/')[-1].split('.')[0]
     # verify if the file exists
     if os.path.exists(_dir_file_pkl):
-        print(f"OK: {_dir_file_pkl}.")
+        print(f"\n------\nOK: {_dir_file_pkl}.")
     else:
         print(f"Error: check {_dir_file_pkl} file.")
     
@@ -61,7 +58,7 @@ def eval_with_Transformer_M1enriched_seed(_data_type, _dir_file_pkl, _total_epoc
         # MUSTARD dataset
         encoder = Identity().cuda()
         features_n = _features_n # it can vary according to the given representations in the pkl
-        head = Sequential(Transformer(features_n, features_n, 5).cuda(), MLP(indim=features_n, hiddim=25, outdim=2, dropout=True, dropoutp=0.1)).cuda() # configuration can be adjusted
+        head = Sequential(Transformer(features_n, features_n, 5).cuda(), MLP(indim=features_n, hiddim=25, outdim=2)).cuda() # configuration can be adjusted
     else:
         print("_data_type N/A")    
         
@@ -111,7 +108,7 @@ def eval_with_Transformer_seed(_dir_file_pkl, _data_type, _features_n, _model_ar
     name = _dir_file_pkl.split('/')[-1].split('.')[0]
     
     if os.path.exists(_dir_file_pkl):
-        print(f"OK: {_dir_file_pkl}.")
+        print(f"\n------\nOK: {_dir_file_pkl}.")
     else:
         print(f"Error: check {_dir_file_pkl} file.")
     
@@ -136,7 +133,7 @@ def eval_with_Transformer_seed(_dir_file_pkl, _data_type, _features_n, _model_ar
         # to process CM_ and MM_ variations where d=50 per each modality (T,V,A)
         encoders = [Identity().cuda(), Identity().cuda(), Identity().cuda()]
         features_n = _features_n
-        head = Sequential(Transformer(features_n, 150, 5).cuda(), MLP(indim=150, hiddim=80, outdim=2, dropoutp=0.1)).cuda() # 5 heads
+        head = Sequential(Transformer(features_n, 150, 5).cuda(), MLP(indim=150, hiddim=80, outdim=2)).cuda() # 5 heads
         fusion = ConcatEarly().cuda()
         #fusion = TensorFusion().cuda()
     else:
@@ -175,10 +172,9 @@ def eval_with_Transformer_seed(_dir_file_pkl, _data_type, _features_n, _model_ar
                 is_packed=False)
 
     print("Testing...")
-    clf_report = test_mmdl(mdl, testdata_all, 'affect', 
+    test_mmdl(mdl, testdata_all, 'affect', 
                       is_packed=False,
                       criterion=torch.nn.CrossEntropyLoss(), 
                       task="classification", 
                       no_robust=True)
     
-    return clf_report
