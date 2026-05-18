@@ -19,7 +19,7 @@ import matplotlib.pyplot as plt
 from training_structures.Supervised_Learning import deal_with_objective # added
 
 def train(encoder, head, train_dataloader, valid_dataloader, total_epochs, early_stop=False, optimtype=torch.optim.RMSprop, lr=0.001, weight_decay=0.0, criterion=nn.CrossEntropyLoss(), auprc=False, save_encoder='encoder.pt', save_head='head.pt', modalnum=0, task='classification', track_complexity=True, 
-          additional_optimizing_modules=[], objective_args_dict=None, input_to_float=True):
+          additional_optimizing_modules=[], objective_args_dict=None, input_to_float=True, _plot=False):
     """Train unimodal module.
 
     Args:
@@ -86,7 +86,7 @@ def train(encoder, head, train_dataloader, valid_dataloader, total_epochs, early
                 out = model(_processinput(batch[modalnum]).float().to(device))
 
                 if torch.isnan(out).any():
-                    print(f"Epoch {epoch}: NaN detected.")
+                    #print(f"Epoch {epoch}: NaN detected.")
                     continue
                 
                 if type(criterion) == torch.nn.modules.loss.BCEWithLogitsLoss:
@@ -121,7 +121,7 @@ def train(encoder, head, train_dataloader, valid_dataloader, total_epochs, early
                     out = model(j[modalnum].float().to(torch.device("cuda:0" if torch.cuda.is_available() else "cpu")))
                     
                     if torch.isnan(out).any():
-                        print(f"Validation. NaN detected.")
+                        #print(f"Validation. NaN detected.")
                         continue
 
                     if type(criterion) == torch.nn.modules.loss.BCEWithLogitsLoss:
@@ -213,21 +213,22 @@ def train(encoder, head, train_dataloader, valid_dataloader, total_epochs, early
         _trainprocess()
     
     # ---- plotting loss -------------------------------------------
-    plt.figure()
-    plt.plot(torch.tensor(trainloss_values).cpu().detach().numpy(), label="Train Loss")
-    plt.title("Loss Over Epochs")
-    plt.xlabel("Epoch")
-    plt.ylabel("Loss")
-    plt.legend()
-    plt.show()
+    if _plot==True:
+        plt.figure()
+        plt.plot(torch.tensor(trainloss_values).cpu().detach().numpy(), label="Train Loss")
+        plt.title("Loss Over Epochs")
+        plt.xlabel("Epoch")
+        plt.ylabel("Loss")
+        plt.legend()
+        plt.show()
 
-    plt.figure()
-    plt.plot(torch.tensor(acc_values).cpu().detach().numpy(), label="Acc")
-    plt.title("Acc Over Epochs")
-    plt.xlabel("Epoch")
-    plt.ylabel("Acc")
-    plt.legend()
-    plt.show()
+        plt.figure()
+        plt.plot(torch.tensor(acc_values).cpu().detach().numpy(), label="Acc")
+        plt.title("Acc Over Epochs")
+        plt.xlabel("Epoch")
+        plt.ylabel("Acc")
+        plt.legend()
+        plt.show()
 
     # end train()
 
@@ -314,7 +315,6 @@ def single_test(encoder, head, test_dataloader, auprc=False, modalnum=0, task='c
             print("lst_true", lst_true)
             report = classification_report(y_true=lst_true, y_pred=lst_pred, digits=4)
             print(report)
-            return lst_pred
         elif task == "multilabel":
             print(" f1_micro: "+str(f1_score(true, pred, average="micro")) +
                   " f1_macro: "+str(f1_score(true, pred, average="macro")))

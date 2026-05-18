@@ -91,7 +91,8 @@ def train(
         early_stop=False, task="classification", optimtype=torch.optim.RMSprop, lr=0.001, weight_decay=0.0,
         objective=nn.CrossEntropyLoss(), auprc=False, save='best.pt', validtime=False, objective_args_dict=None, input_to_float=True, 
         clip_val=1.0,
-        track_complexity=False):
+        track_complexity=False,
+        _plot=False):
     """
     Handle running a simple supervised training loop.
     
@@ -164,7 +165,7 @@ def train(
                     #print(f"train OUT: {out.shape}, {out.dtype}")
     
                     if torch.isnan(out).any():
-                        print(f"Epoch {epoch}: NaN detected.")
+                        #print(f"Epoch {epoch}: NaN detected.")
                         continue
             
                 if not (objective_args_dict is None):
@@ -195,8 +196,9 @@ def train(
             # ---------------- validating the model --------------
             validstarttime = time.time()
             if validtime:
-                print("train total: "+str(totals))
-            
+                #print("train total: "+str(totals))
+                continue
+
             model.eval()
             with torch.no_grad():
                 #print(" ----- validation ----- ")
@@ -213,7 +215,7 @@ def train(
                                     for i in j[:-1]])
 
                     if torch.isnan(out).any():
-                        print(f"Validation. NaN detected.")
+                        #print(f"Validation. NaN detected.")
                         continue
 
                     if not (objective_args_dict is None):
@@ -315,21 +317,22 @@ def train(
         _trainprocess()
 
     # ---- plotting loss -------------------------------------------
-    plt.figure()
-    plt.plot(torch.tensor(trainloss_values).cpu().detach().numpy(), label="Train Loss")
-    plt.title("Loss Over Epochs")
-    plt.xlabel("Epoch")
-    plt.ylabel("Loss")
-    plt.legend()
-    plt.show()
+    if _plot == True:
+        plt.figure()
+        plt.plot(torch.tensor(trainloss_values).cpu().detach().numpy(), label="Train Loss")
+        plt.title("Loss Over Epochs")
+        plt.xlabel("Epoch")
+        plt.ylabel("Loss")
+        plt.legend()
+        plt.show()
 
-    plt.figure()
-    plt.plot(torch.tensor(acc_values).cpu().detach().numpy(), label="Acc")
-    plt.title("Acc Over Epochs")
-    plt.xlabel("Epoch")
-    plt.ylabel("Acc")
-    plt.legend()
-    plt.show()
+        plt.figure()
+        plt.plot(torch.tensor(acc_values).cpu().detach().numpy(), label="Acc")
+        plt.title("Acc Over Epochs")
+        plt.xlabel("Epoch")
+        plt.ylabel("Acc")
+        plt.legend()
+        plt.show()
 
     # return the best saved
     ckpt = torch.load(save)
@@ -453,13 +456,12 @@ def single_test(
             report = classification_report(y_true=lst_true, y_pred=lst_pred, digits=4)
             print(report)
             # confusion matrix ---------------------------------------------
-            cm = confusion_matrix(lst_true, lst_pred)
-            disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=['Clase 0', 'Clase 1'])
-            disp.plot(cmap=plt.cm.Blues)
-            plt.title('Confusion matrix')
-            plt.show()
-
-            return lst_pred #report
+            #cm = confusion_matrix(lst_true, lst_pred)
+            #disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=['Clase 0', 'Clase 1'])
+            #disp.plot(cmap=plt.cm.Blues)
+            #plt.title('Confusion matrix')
+            #plt.show()
+            return report
 
         elif task == "multilabel":
             print(" f1_micro: "+str(f1_score(true, pred, average="micro")) +
