@@ -1,18 +1,38 @@
 """
 Affect Datasets correspond to:
-'mustard': datasets/sarcasm.pkl
-'mosi': !need to check
-'mosei': !need to download the pkl and adapt the functions
-'ur-funny': !need to adapt the functions
+'mustard': data/datasets/sarcasm.pkl
+'hsdvmx': data/datasets/hsdvmx.pkl
 """
-import pickle
-# for scikit-learn
-import numpy as np
-#
 import sys
 import os
 sys.path.append(os.path.abspath('./'))
 
+import pickle
+# for scikit-learn
+import numpy as np
+
+# ----------------------------------------------------
+# about-labels
+# ----------------------------------------------------
+def assign_modalities_text_vision_audio(_ds_partition, _M):
+    """Receives a dict ds_partition and returns each partition modalities
+    """
+    try: 
+        ds_partition_t = _ds_partition['text']
+    except:
+       ds_partition_t = None
+    
+    try:
+        ds_partition_v = _ds_partition['vision']
+    except:
+       ds_partition_v = None
+    
+    try:
+        ds_partition_a = _ds_partition['audio']
+    except:
+       ds_partition_a = None
+
+    return ds_partition_t, ds_partition_v, ds_partition_a
 
 def labels_posneg_to_binary(_ds_train, _ds_test, _ds_valid):
     """Given {-1, 1} values it returns the corresponding {0, 1} values
@@ -27,33 +47,7 @@ def labels_posneg_to_binary(_ds_train, _ds_test, _ds_valid):
     
     return ds_train_labels, ds_test_labels, ds_valid_labels
 
-# -/- 1)/2) according with MMT: Multi-Way MultiMOdal Transformer
-def mosi_labels_into_2class_neg_nonneg(_ds_partition):
-    _ds_partition_labels = np.array(_ds_partition['labels'])
-    # 1) Zadeh et al. 2018b
-    ds_labels = []
-    for label in _ds_partition_labels:
-        if label < 0:
-           # negative
-           ds_labels.append(0)
-        if label >= 0:
-          # non-negative
-          ds_labels.append(1)
-    return np.array(ds_labels)  
-
-def mosi_labels_into_2class_neg_pos(_ds_partition):
-    _ds_partition_labels = np.array(_ds_partition['labels'])
-    # 2) Tsai et al. 2019
-    ds_labels = []
-    for label in _ds_partition_labels:
-        if label < 0:
-           # negative
-           ds_labels.append(0)
-        if label > 0:
-          # positive
-          ds_labels.append(1)
-    return np.array(ds_labels)  
-
+ 
 def checkForInfinitiesorNaN(_ds_partition):
     #print(np.any(np.isinf(_ds_partition)))  # Check for infinities
     #print(np.any(np.isnan(_ds_partition)))
@@ -70,20 +64,40 @@ def checkForInfinitiesorNaN(_ds_partition):
     #print("Max:", np.max(_ds_partition))
     return _ds_partition
 
-
-def assign_modalities_text_vision_audio(_ds_partition):
-    """Receives a dict ds_partition and returns each partition modalities
-    """
-    ds_partition_t = _ds_partition['text']
-    ds_partition_v = _ds_partition['vision']
-    ds_partition_a = _ds_partition['audio']
+def labels_class_or_subclass(_ds_train, _ds_test, _ds_valid, _labels):
+    print(f"labels_class_or_subclass, _labels: {_labels}")
     
-    return ds_partition_t, ds_partition_v, ds_partition_a
+    if _labels == 'labels':
+        print("labels -> 3 classes")
+        ds_train_labels = np.array(_ds_train['labels'])
+        ds_test_labels = np.array(_ds_test['labels'])
+        ds_valid_labels = np.array(_ds_valid['labels'])    
+    elif _labels == 'labels_hs':
+        print("labels_hs -> sub-classes")
+        ds_train_labels = np.array(_ds_train['labels_hs'])
+        ds_test_labels = np.array(_ds_test['labels_hs'])
+        ds_valid_labels = np.array(_ds_valid['labels_hs'])
+    elif _labels == 'labels_bin':
+        print("labels_bin -> 3 classes to binary")
+        ds_train_labels = np.array(_ds_train['labels_bin'])
+        ds_test_labels = np.array(_ds_test['labels_bin'])
+        ds_valid_labels = np.array(_ds_valid['labels_bin'])
+        #ds_train_labels[ds_train_labels == 2] = 1 # hate-speech to negative
+        #ds_test_labels[ds_test_labels == 2] = 1
+        #ds_valid_labels[ds_valid_labels == 2] = 1
+    else:
+        print("Error: labels_class_or_subclass, check _labels")
 
-# promSumVect: transform each modality of shape(n_samples, m, D) to shape(n_samples,D)
+    return ds_train_labels, ds_test_labels, ds_valid_labels
+
+# -----------------------------------------------------------------------------
+# representations: promSumVectors, bagVectors
+# -----------------------------------------------------------------------------
+
 def embedRepresentationsForEachSample(_ds_partition_modality):
+  """ (promSumVect) transform each modality of shape(n_samples, m, D) to shape(n_samples,D) 
+  """
   X_modality = np.zeros((_ds_partition_modality.shape[0], _ds_partition_modality.shape[2]), dtype=float)
-
   #print(X_modality.shape)
   for i in range(_ds_partition_modality.shape[0]):
     reduced_sample = np.mean(_ds_partition_modality[i], axis=0)
@@ -91,8 +105,9 @@ def embedRepresentationsForEachSample(_ds_partition_modality):
     #print(reduced_sample.shape)
   return X_modality
 
-# bagVectors
 def bag_embedRepresentationsForEachSample(_ds_partition_modality, _ds_partition_labels):
+  """ Each modality instances as bag of embeddings of shape(n_samples, m, D) 
+  """
   num_instances = _ds_partition_modality.shape[0]
   n = _ds_partition_modality.shape[1]
   m = _ds_partition_modality.shape[2]
@@ -119,11 +134,21 @@ def bag_embedRepresentationsForEachSample(_ds_partition_modality, _ds_partition_
 
   return X_data, X_labels
 
-def load_dataset_pkl(_file_path_pkl, _str_dataset, _str_video_representation, _M):
+# -----------------------------------------------------------------------------
+# load_dataset_pkl
+# -----------------------------------------------------------------------------
+
+def load_dataset_pkl(_file_path_pkl, _str_dataset, _str_video_representation, _M, _labels=None):
     """ Receives a pkl that contains the dataset information in a dictionary format and returns the loaded data partitions and labels
-    Params
-    _file_path_pkl: str of the path where the pkl file exists
-    _str_dataset: str of the dataset to work with (mustard, mosi, hsdv)
+    
+    Parameters
+    ------
+    _file_path_pkl: string, path where the pkl file exists
+    _str_dataset: string, dataset to work with (mustard)
+    _str_video_representation: string, representations will be generated between: 
+        'avgSumVectors': given an input of n x m it applies an average sum of the vectors to work and generate a 1 x n representation
+        'bagVectors': given an input of n x m, it generates a representation for each n vector
+    _M: modality to work with: {T, V, A} where T=text, V=video, A=audio
 
     Returns
     -------
@@ -140,6 +165,8 @@ def load_dataset_pkl(_file_path_pkl, _str_dataset, _str_video_representation, _M
         ds_train = ds_data['train']
         ds_test = ds_data['test']
         ds_valid = ds_data['valid']
+        # video ids for test
+        ds_ids = ds_data['test']['id']
     else:
        #print("DS partitions:", ds_data.keys())
        print("def load_dataset_pkl: Verify your dataset partitions. Required format ['train', 'test', 'valid']")
@@ -149,9 +176,9 @@ def load_dataset_pkl(_file_path_pkl, _str_dataset, _str_video_representation, _M
         print("Working on:", _str_dataset)
         print("Video representation:", _str_video_representation)
         # assigning modalities data to each partition
-        ds_train_t, ds_train_v, ds_train_a = assign_modalities_text_vision_audio(ds_train)
-        ds_test_t, ds_test_v, ds_test_a = assign_modalities_text_vision_audio(ds_test)
-        ds_valid_t, ds_valid_v, ds_valid_a = assign_modalities_text_vision_audio(ds_valid)
+        ds_train_t, ds_train_v, ds_train_a = assign_modalities_text_vision_audio(ds_train, _M)
+        ds_test_t, ds_test_v, ds_test_a = assign_modalities_text_vision_audio(ds_test, _M)
+        ds_valid_t, ds_valid_v, ds_valid_a = assign_modalities_text_vision_audio(ds_valid, _M)
         # assigning labels to each partition
         ds_train_labels, ds_test_labels, ds_valid_labels = labels_posneg_to_binary(ds_train, ds_test, ds_valid)
         # work with video representations as: promSumVectors or load each "point" of the videos
@@ -176,7 +203,7 @@ def load_dataset_pkl(_file_path_pkl, _str_dataset, _str_video_representation, _M
                 X_train, X_test, X_valid = X_train_A, X_test_A, X_valid_A
             else:
                print("Error: no modality", _M)
-            return _M, X_train, X_test, X_valid, y_train, y_test, y_valid
+            return ds_ids, X_train, X_test, X_valid, y_train, y_test, y_valid
         elif _str_video_representation == "bagVectors":
             if _M == "T":
                 X_train_T, X_train_labels = bag_embedRepresentationsForEachSample(ds_train_t, ds_train_labels)
@@ -197,60 +224,41 @@ def load_dataset_pkl(_file_path_pkl, _str_dataset, _str_video_representation, _M
                print("Error: no modality", _M)
             # labels at "point level"
             y_train, y_test, y_valid = X_train_labels, X_test_labels, X_valid_labels
-            return _M, X_train, X_test, X_valid, y_train, y_test, y_valid  
-    elif _str_dataset == "mosi":
-        print("in process working with mosi...")
+            return ds_ids, X_train, X_test, X_valid, y_train, y_test, y_valid  
+    # end if mustard dataset
+    elif _str_dataset == "hsdvmx":
         print("Working on:", _str_dataset)
         print("Video representation:", _str_video_representation)
         # assigning modalities data to each partition
-        ds_train_t, ds_train_v, ds_train_a = assign_modalities_text_vision_audio(ds_train)
-        ds_test_t, ds_test_v, ds_test_a = assign_modalities_text_vision_audio(ds_test)
-        ds_valid_t, ds_valid_v, ds_valid_a = assign_modalities_text_vision_audio(ds_valid)
+        ds_train_t, ds_train_v, ds_train_a = assign_modalities_text_vision_audio(ds_train, _M)
+        ds_test_t, ds_test_v, ds_test_a = assign_modalities_text_vision_audio(ds_test, _M)
+        ds_valid_t, ds_valid_v, ds_valid_a = assign_modalities_text_vision_audio(ds_valid, _M)
         # assigning labels to each partition
-        #ds_train_labels, ds_test_labels, ds_valid_labels = labels_posneg_to_binary(ds_train, ds_test, ds_valid)
-        # 
-        # 1) Zadeh et al 2018b
-        ds_train_labels = mosi_labels_into_2class_neg_nonneg(ds_train)
-        ds_test_labels = mosi_labels_into_2class_neg_nonneg(ds_test)
-        ds_valid_labels = mosi_labels_into_2class_neg_nonneg(ds_valid)
-        # 2) Tsai et al 2029
-        #ds_train_labels = mosi_labels_into_2class_neg_pos(ds_train)
-        #ds_test_labels = mosi_labels_into_2class_neg_pos(ds_test)
-        #ds_valid_labels = mosi_labels_into_2class_neg_pos(ds_valid)
-        #
-        #print("ds_train_labels", ds_train_labels)
+        # labels = {0,1,2} OR labels_hs = {0,1,2,3,4}
+        ds_train_labels, ds_test_labels, ds_valid_labels = labels_class_or_subclass(ds_train, ds_test, ds_valid, _labels)
         # work with video representations as: promSumVectors or load each "point" of the videos
         if _str_video_representation == "promSumVectors":
             y_train, y_test, y_valid = ds_train_labels, ds_test_labels, ds_valid_labels
             print("Labels", set(y_train))
             # representations for each modality
             if _M == "T":
-                ds_train_t = checkForInfinitiesorNaN(ds_train_t)
-                ds_test_t = checkForInfinitiesorNaN(ds_test_t)
-                ds_valid_t = checkForInfinitiesorNaN(ds_valid_t)
                 X_train_T = embedRepresentationsForEachSample(ds_train_t)
                 X_test_T = embedRepresentationsForEachSample(ds_test_t)
                 X_valid_T = embedRepresentationsForEachSample(ds_valid_t)
                 X_train, X_test, X_valid = X_train_T, X_test_T, X_valid_T
             elif _M == "V":
-                ds_train_v = checkForInfinitiesorNaN(ds_train_v)
-                ds_test_v = checkForInfinitiesorNaN(ds_test_v)
-                ds_valid_v = checkForInfinitiesorNaN(ds_valid_v)
                 X_train_V = embedRepresentationsForEachSample(ds_train_v)
                 X_test_V = embedRepresentationsForEachSample(ds_test_v)
                 X_valid_V = embedRepresentationsForEachSample(ds_valid_v)
                 X_train, X_test, X_valid = X_train_V, X_test_V, X_valid_V
-            elif _M == "A": 
-                ds_train_a = checkForInfinitiesorNaN(ds_train_a)
-                ds_test_a = checkForInfinitiesorNaN(ds_test_a)
-                ds_valid_a = checkForInfinitiesorNaN(ds_valid_a)   
+            elif _M == "A":    
                 X_train_A = embedRepresentationsForEachSample(ds_train_a)
                 X_test_A = embedRepresentationsForEachSample(ds_test_a)
                 X_valid_A = embedRepresentationsForEachSample(ds_valid_a)
                 X_train, X_test, X_valid = X_train_A, X_test_A, X_valid_A
             else:
                print("Error: no modality", _M)
-            return _M, X_train, X_test, X_valid, y_train, y_test, y_valid
+            return ds_ids, X_train, X_test, X_valid, y_train, y_test, y_valid
         elif _str_video_representation == "bagVectors":
             if _M == "T":
                 X_train_T, X_train_labels = bag_embedRepresentationsForEachSample(ds_train_t, ds_train_labels)
@@ -271,19 +279,6 @@ def load_dataset_pkl(_file_path_pkl, _str_dataset, _str_video_representation, _M
                print("Error: no modality", _M)
             # labels at "point level"
             y_train, y_test, y_valid = X_train_labels, X_test_labels, X_valid_labels
-            return _M, X_train, X_test, X_valid, y_train, y_test, y_valid
+            return ds_ids, X_train, X_test, X_valid, y_train, y_test, y_valid  
     else:
        print("def load_dataset_pkl: dataset", _str_dataset, " isn't available.")
-    
-    
-    # assigning labels for each partition for the dataset
-    #if _str_dataset == "mustard":
-    #    ds_train_labels, ds_test_labels, ds_valid_labels = labels_for_mustard(ds_train, ds_test, ds_valid)
-    #elif _str_dataset == "mosi":
-    #    _mosi_type = "mosi_2class_neg_nonneg"
-    #    ds_train_labels, ds_test_labels, ds_valid_labels = labels_for_mosi(ds_train, ds_test, ds_valid, _mosi_type) 
-    #else: 
-    #    print("Can't load", _str_dataset, "pkl file.")
-    
-    #return ds_train, ds_test, ds_valid, ds_train_labels, ds_test_labels, ds_valid_labels
-
